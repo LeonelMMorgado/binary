@@ -16,6 +16,7 @@ void byte(uint8_t byte) {
 void binary(uint64_t info) {
     bool printing = false;
 
+	//with this, a value like 1 or a -1 wont show all the repeating values, only the necessary
     for(int i = 7; i > 0; i--) {
         uint8_t current_byte = (info >> (8 * i)) & 0xFF;
         uint8_t next_byte = (info >> (8 * (i - 1))) & 0xFF;
@@ -51,7 +52,7 @@ void binary_hex(char *str) {
 }
 
 void binary_bin(char *str) {
-    int len_bin = strlen(str + 2);
+    int len_bin = strlen(str + 2); //assumes str starts with 0b
     int nbs = 0; //next byte size: in a value with 10 digits, there would be 2 full bytes to represent it
     for(nbs; nbs < len_bin; nbs += 8); //"add" one byte to the length
     int leading_zeroes = nbs - len_bin;
