@@ -6,17 +6,20 @@
 #include <ctype.h>
 #include <errno.h>
 
+#define BYTE_SEPARATOR "_"
+#define VALUE_SEPARATOR " "
+
 void byte(uint8_t byte) {
     for(int i = 7; i > 0; i--) {
         printf("%u", (byte >> i) & 1);
     }
-    printf("%u ", byte & 1);
+    printf("%u", byte & 1);
 }
 
 void binary(uint64_t info) {
     bool printing = false;
 
-	//with this, a value like 1 or a -1 wont show all the repeating values, only the necessary
+    // With this, a value like 1 or a -1 won't show all the repeating values, only the necessary
     for(int i = 7; i > 0; i--) {
         uint8_t current_byte = (info >> (8 * i)) & 0xFF;
         uint8_t next_byte = (info >> (8 * (i - 1))) & 0xFF;
@@ -26,16 +29,20 @@ void binary(uint64_t info) {
             printing = true;
         }
         byte(current_byte);
+		printf(BYTE_SEPARATOR);
     }
     byte(info & 0xFF);
+	printf(VALUE_SEPARATOR);
 }
 
 void binary_str(char *str) {
     int i = 0;
     while(str[i] != 0) {
-        binary(str[i]);
+        byte(str[i]);
+		if(str[i + 1] != 0) printf(BYTE_SEPARATOR);
         i++;
     }
+	printf(VALUE_SEPARATOR);
 }
 
 void binary_hex(char *str) {
@@ -52,18 +59,18 @@ void binary_hex(char *str) {
 }
 
 void binary_bin(char *str) {
-    int len_bin = strlen(str + 2); //assumes str starts with 0b
-    int nbs = 0; //next byte size: in a value with 10 digits, there would be 2 full bytes to represent it
-    for(nbs; nbs < len_bin; nbs += 8); //"add" one byte to the length
+    int len_bin = strlen(str + 2); // Assumes str starts with 0b
+    int nbs = 0; // Next byte size
+    for(; nbs < len_bin; nbs += 8);
     int leading_zeroes = nbs - len_bin;
     for(int i = 0; i < leading_zeroes; i++) printf("0");
     int i = 0;
     while(str[i + 2] != 0) {
         printf("%u", str[i+2] == '1');
-        if((leading_zeroes + i) % 8 == 7) printf(" ");
+        if((leading_zeroes + i) % 8 == 7 && str[i+2 + 1] != 0) printf(BYTE_SEPARATOR);
         i++;
     }
-    printf(" ");
+    printf(VALUE_SEPARATOR);
 }
 
 void binary_num(char *str) {
@@ -77,7 +84,48 @@ void binary_num(char *str) {
     bool has_tail = *endptr != 0 && *endptr != '\n';
     binary(res);
     if(has_tail) binary_str(endptr);
+}
 
+void binary_float(char *str) {
+    char *endptr;
+    errno = 0;
+    double val = strtod(str, &endptr);
+    if(errno == ERANGE) {
+        printf("Float value too high or low\n");
+        return;
+    }
+    if(endptr == str) return;
+
+    // Reinterpret the double bytes into a uint64_t
+    uint64_t bits;
+    memcpy(&bits, &val, sizeof(bits));
+
+    bool has_tail = *endptr != 0 && *endptr != '\n';
+    binary(bits);
+    if(has_tail) binary_str(endptr);
+}
+
+bool is_float_str(char *str) {
+    bool has_decimal = false;
+    bool has_exponent = false;
+    int i = 0;
+
+    if(str[i] == '-' || str[i] == '+') i++;
+
+    while(str[i] != '\0' && str[i] != '\n') {
+        if(str[i] == '.') {
+            if(has_decimal || has_exponent) return false;
+            has_decimal = true;
+        } else if(str[i] == 'e' || str[i] == 'E') {
+            if(has_exponent) return false;
+            has_exponent = true;
+            if(str[i+1] == '-' || str[i+1] == '+') i++;
+        } else if(!isdigit(str[i])) {
+            return false;
+        }
+        i++;
+    }
+    return has_decimal || has_exponent;
 }
 
 int main(int argc, char *argv[]) {
@@ -88,16 +136,19 @@ int main(int argc, char *argv[]) {
     for(int i = 0; i < argc - 1; i++) {
         char *element = argv[i + 1];
         if(element[0] == '-') {
-            if(isdigit(element[1])) binary_num(element);
+            if(is_float_str(element)) binary_float(element);
+            else if(isdigit(element[1])) binary_num(element);
             else binary_str(element);
         }
         else if(element[0] == '0') {
             if(element[1] == 'x' || element[1] == 'X') binary_hex(element);
             else if(element[1] == 'b' || element[1] == 'B') binary_bin(element);
+            else if(is_float_str(element)) binary_float(element);
             else binary_num(element);
         }
         else if(isdigit(element[0])) {
-            binary_num(element);
+            if(is_float_str(element)) binary_float(element);
+            else binary_num(element);
         }
         else {
             binary_str(element);
